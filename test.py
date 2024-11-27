@@ -6,7 +6,7 @@ veri_seti = pd.read_sql("SELECT * FROM table_name", conn)  # SQL sorgusu ile ver
 # İlk birkaç satırı görmek için
 print(veri_seti.head())"""
 
-import pyodbc
+"""import pyodbc
 import os
 
 # Veritabanı bağlantı bilgileriniz
@@ -36,4 +36,4 @@ conn.commit()
 cursor.close()
 conn.close()
 
-print("Resim başarıyla yüklendi.")
+print("Resim başarıyla yüklendi.")"""

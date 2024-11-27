@@ -7,7 +7,7 @@ SEARCH_QUERY = 'human'  # Arama kriteri (örneğin: "insan")
 URL = f"https://pixabay.com/api/?key={API_KEY}&q={SEARCH_QUERY}&image_type=photo"
 
 # Kaydetme klasörünüzü tanımlayın
-save_dir = r"C:\\Users\\AğaBaba\\OneDrive\\Masaüstü\\Yeni klasör"
+save_dir = r"C:\\Users\\Derya\\OneDrive\\Masaüstü\\Yeni klasör"
 
 # Klasör mevcut değilse oluştur
 os.makedirs(save_dir, exist_ok=True)

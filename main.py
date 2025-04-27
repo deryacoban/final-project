@@ -3,20 +3,20 @@ import os
 from ultralytics import YOLO
 from deep_sort_realtime.deepsort_tracker import DeepSort
 
-# YOLOv8 model yükle
+# YOLOv8 modelini yükle
 model = YOLO("yolov8n.pt")
 
 # DeepSORT tracker (ReID için optimize edildi)
 tracker = DeepSort(
-    max_age=150,               # 150 frame boyunca görünmese bile ID korunur (~5 saniye 30 FPS'de)
-    n_init=1,                  # Hemen ID atanır
-    max_cosine_distance=0.2,   # Görünüş benzerliği daha hassas
-    embedder="mobilenet",      # Hafif ve hızlı görsel karşılaştırma
-    half=True                  # Daha hızlı çalışması için (GPU varsa etkili)
+    max_age=60,                     # ID kaybolmadan önce 60 frame bekle
+    n_init=3,                       # Bir nesne 3 frame arka arkaya görülürse ID ver
+    max_cosine_distance=0.3,        # Biraz esnek eşleştirme
+    embedder="osnet_x0_25",         # ReID için daha iyi bir embedder (person için optimize)
+    half=True                       # GPU varsa daha hızlı
 )
 
-# Video okuma ve çıkış
-cap = cv2.VideoCapture("bitirme/test.mp4")
+# Video okuma ve çıkış ayarları
+cap = cv2.VideoCapture("couple.mp4")
 frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
@@ -31,20 +31,20 @@ while True:
     if not ret:
         break
 
-    # İnsan tespiti (class_id = 0)
+    # İnsan tespiti
     results = model(frame)[0]
     detections = []
     for result in results.boxes.data.tolist():
         x1, y1, x2, y2, score, class_id = result
-        if int(class_id) == 0:
-            bbox = [x1, y1, x2 - x1, y2 - y1]  # x, y, w, h
+        if int(class_id) == 0 and score > 0.4:  # Sadece insan ve 0.4'ten büyük skor
+            bbox = [x1, y1, x2 - x1, y2 - y1]   # x, y, w, h
             detections.append((bbox, score, 'person'))
 
     # DeepSORT ile takip
     tracks = tracker.update_tracks(detections, frame=frame)
 
     for track in tracks:
-        if not track.is_confirmed():
+        if not track.is_confirmed() or track.time_since_update > 1:
             continue
 
         track_id = track.track_id
@@ -60,3 +60,4 @@ while True:
 cap.release()
 output.release()
 cv2.destroyAllWindows()
+print("Video işleme tamamlandı. Çıkış dosyası: output/output.avi")

@@ -43,7 +43,7 @@ def get_color(id):
         id_colors[id] = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
     return id_colors[id]
 
-MAX_HISTORY = 50  # Sadece son 50 noktayı tutacağız
+MAX_HISTORY = 100  # Sadece son 50 noktayı tutacağız
 
 while True:
     ret, frame = cap.read()

@@ -3,36 +3,34 @@ import os
 import random
 from ultralytics import YOLO
 from deep_sort_realtime.deepsort_tracker import DeepSort
+from collections import defaultdict
 
-# === YOLOv8 modelini yükle ===
+# === YOLOv8 modeli ===
 model_yolo = YOLO("yolov8n.pt")
 
-# === DeepSORT tracker ===
+# === ReID destekli tracker ===
 tracker = DeepSort(
-    max_age=90,
-    n_init=3,
-    max_cosine_distance=0.3,
-    embedder="mobilenet",
-    half=True
+    max_age=60,
+    n_init=2,
+    max_cosine_distance=0.2,
+    embedder="torchreid",     # osnet_x1_0'ı içeriden kullanır
+    embedder_gpu=True
 )
 
-# === Video ayarları ===
-cap = cv2.VideoCapture("multi_people_video.mp4")  # ← çok kişili video burada
+cap = cv2.VideoCapture("multi2.mp4")
 frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 frame_area = frame_width * frame_height
 
 os.makedirs("output", exist_ok=True)
-output = cv2.VideoWriter("output/output_boxes_only.avi",
+output = cv2.VideoWriter("output/output_stable_ids.avi",
                          cv2.VideoWriter_fourcc(*'XVID'),
                          30.0,
                          (frame_width, frame_height))
 
-# === Alan sınırları ===
 min_area_ratio = 0.01
 max_area_ratio = 0.3
 
-# Her ID'ye sabit renk
 id_colors = {}
 def get_color(track_id):
     if track_id not in id_colors:
@@ -44,10 +42,16 @@ def get_color(track_id):
         )
     return id_colors[track_id]
 
+trajectories = defaultdict(list)
+last_seen_frame = {}
+frame_count = 0
+max_disappear_frames = 15
+
 while True:
     ret, frame = cap.read()
     if not ret:
         break
+    frame_count += 1
 
     results = model_yolo(frame)[0]
     detections = []
@@ -64,6 +68,7 @@ while True:
                 detections.append((bbox, score, 'person'))
 
     tracks = tracker.update_tracks(detections, frame=frame)
+    active_ids = set()
 
     for track in tracks:
         if not track.is_confirmed() or track.time_since_update > 1:
@@ -71,11 +76,33 @@ while True:
 
         track_id = track.track_id
         l, t, r, b = track.to_ltrb()
-
         color = get_color(track_id)
+
+        # Kutuyu ve ID'yi çiz
         cv2.rectangle(frame, (int(l), int(t)), (int(r), int(b)), color, 2)
         cv2.putText(frame, f'ID: {track_id}', (int(l), int(t) - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+
+        # Merkez noktayı ekle
+        center = (int((l + r) / 2), int((t + b) / 2))
+        trajectories[track_id].append(center)
+        last_seen_frame[track_id] = frame_count
+        active_ids.add(track_id)
+
+    # Kadrajdan çıkalı çok olanları sil
+    ids_to_delete = [tid for tid, last_seen in last_seen_frame.items()
+                     if frame_count - last_seen > max_disappear_frames]
+    for tid in ids_to_delete:
+        trajectories.pop(tid, None)
+        last_seen_frame.pop(tid, None)
+
+    # İz çiz
+    for track_id, points in trajectories.items():
+        if len(points) < 2:
+            continue
+        color = get_color(track_id)
+        for i in range(1, len(points)):
+            cv2.line(frame, points[i - 1], points[i], color, 2)
 
     output.write(frame)
 
@@ -83,4 +110,4 @@ cap.release()
 output.release()
 cv2.destroyAllWindows()
 
-print("Her kişiye benzersiz ID verildi, sadece kutular ve ID'ler çizildi → 'output/output_boxes_only.avi'")
+print("✅ Sabit ID'ler ve sadece kadrajdayken iz çizildi → output/output_stable_ids.avi")

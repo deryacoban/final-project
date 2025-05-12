@@ -5,32 +5,35 @@ from ultralytics import YOLO
 from deep_sort_realtime.deepsort_tracker import DeepSort
 from collections import defaultdict
 
-# === YOLOv8 modeli ===
+# === YOLOv8 modeli yükle ===
 model_yolo = YOLO("yolov8n.pt")
 
-# === ReID destekli tracker ===
+# === ReID'siz (torchreid gerektirmeyen) tracker ===
 tracker = DeepSort(
     max_age=60,
     n_init=2,
     max_cosine_distance=0.2,
-    embedder="torchreid",     # osnet_x1_0'ı içeriden kullanır
+    embedder="mobilenet",
     embedder_gpu=True
 )
-
-cap = cv2.VideoCapture("multi2.mp4")
+# === Video yükle ===
+cap = cv2.VideoCapture("people.mp4")
 frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 frame_area = frame_width * frame_height
 
+# === Çıktı klasörü ve video oluştur ===
 os.makedirs("output", exist_ok=True)
 output = cv2.VideoWriter("output/output_stable_ids.avi",
                          cv2.VideoWriter_fourcc(*'XVID'),
                          30.0,
                          (frame_width, frame_height))
 
+# === Filtreleme için alan oranları ===
 min_area_ratio = 0.01
 max_area_ratio = 0.3
 
+# === ID için renk ve iz takibi ===
 id_colors = {}
 def get_color(track_id):
     if track_id not in id_colors:
@@ -47,6 +50,7 @@ last_seen_frame = {}
 frame_count = 0
 max_disappear_frames = 15
 
+# === Frame'leri işle ===
 while True:
     ret, frame = cap.read()
     if not ret:
@@ -67,7 +71,11 @@ while True:
                 bbox = [x1, y1, width, height]
                 detections.append((bbox, score, 'person'))
 
-    tracks = tracker.update_tracks(detections, frame=frame)
+    if detections:
+     tracks = tracker.update_tracks(detections, frame=frame)
+    else:
+     tracks = []
+
     active_ids = set()
 
     for track in tracks:
@@ -106,6 +114,7 @@ while True:
 
     output.write(frame)
 
+# === Temizlik işlemleri ===
 cap.release()
 output.release()
 cv2.destroyAllWindows()
